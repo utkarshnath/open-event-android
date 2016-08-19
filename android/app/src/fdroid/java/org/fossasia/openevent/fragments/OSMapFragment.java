@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.Fragment;
@@ -18,8 +19,12 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
+import org.fossasia.openevent.BuildConfig;
 import org.fossasia.openevent.R;
+import org.fossasia.openevent.data.Event;
+import org.fossasia.openevent.dbutils.DbSingleton;
 import org.osmdroid.DefaultResourceProxyImpl;
+import org.osmdroid.tileprovider.constants.OpenStreetMapTileProviderConstants;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.overlay.ItemizedIconOverlay;
@@ -30,11 +35,12 @@ import java.util.Locale;
 
 public class OSMapFragment extends Fragment {
 
-    private static final double DESTINATION_LATITUDE = 52.52433;
+    private static double DESTINATION_LATITUDE = 0;
 
-    private static final double DESTINATION_LONGITUDE = 13.389893;
+    private static double DESTINATION_LONGITUDE = 0;
 
-    private static final String DESTINATION_NAME = "Kalkscheune Johannisstraße 2  10117 Berlin Germany";
+    private static String DESTINATION_NAME = "";
+
     private static final int PERMISSION_REQUEST_WRITE_EXTERNAL_STORAGE_RESULT = 100;
 
     MapView mapView;
@@ -43,6 +49,8 @@ public class OSMapFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        OpenStreetMapTileProviderConstants.setUserAgentValue(BuildConfig.APPLICATION_ID);
+
         setHasOptionsMenu(true);
     }
 
@@ -70,11 +78,14 @@ public class OSMapFragment extends Fragment {
         mapView = (MapView) rootView.findViewById(R.id.mapview);
         mapView.setBuiltInZoomControls(true);
         mapView.setMultiTouchControls(true);
-
-        GeoPoint geoPoint = new GeoPoint(DESTINATION_LATITUDE, DESTINATION_LONGITUDE);
+        Event event = DbSingleton.getInstance().getEventDetails();
+        setDestinationLatitude(event.getLatitude());
+        setDestinationLongitude(event.getLongitude());
+        setDestinationName(event.getLocationName());
+        GeoPoint geoPoint = new GeoPoint(getDestinationLatitude(), getDestinationLongitude());
         mapView.getController().setCenter(geoPoint);
-        mapView.getController().setZoom(15);
-        OverlayItem position = new OverlayItem(DESTINATION_NAME, "Location", geoPoint);
+        mapView.getController().setZoom(17);
+        OverlayItem position = new OverlayItem(getDestinationName(), "Location", geoPoint);
 
         ArrayList<OverlayItem> items = new ArrayList<>();
         items.add(position);
@@ -96,7 +107,7 @@ public class OSMapFragment extends Fragment {
 
     @Override
     public void onRequestPermissionsResult(int requestCode,
-                                           String permissions[], int[] grantResults) {
+                                           @NonNull String permissions[], @NonNull int[] grantResults) {
         switch (requestCode) {
             case PERMISSION_REQUEST_WRITE_EXTERNAL_STORAGE_RESULT: {
                 if (grantResults.length > 0
@@ -150,4 +161,27 @@ public class OSMapFragment extends Fragment {
 
     }
 
+    public static double getDestinationLatitude() {
+        return DESTINATION_LATITUDE;
+    }
+
+    public static double getDestinationLongitude() {
+        return DESTINATION_LONGITUDE;
+    }
+
+    public static String getDestinationName() {
+        return DESTINATION_NAME;
+    }
+
+    public static void setDestinationLatitude(double destinationLatitude) {
+        DESTINATION_LATITUDE = destinationLatitude;
+    }
+
+    public static void setDestinationLongitude(double destinationLongitude) {
+        DESTINATION_LONGITUDE = destinationLongitude;
+    }
+
+    public static void setDestinationName(String destinationName) {
+        DESTINATION_NAME = destinationName;
+    }
 }
