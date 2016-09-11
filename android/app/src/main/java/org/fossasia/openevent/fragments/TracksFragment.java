@@ -36,6 +36,10 @@ import org.fossasia.openevent.utils.NetworkUtils;
 
 import java.util.List;
 
+import butterknife.BindView;
+import butterknife.ButterKnife;
+import butterknife.Unbinder;
+
 /**
  * User: MananWason
  * Date: 05-06-2015
@@ -44,30 +48,30 @@ public class TracksFragment extends Fragment implements SearchView.OnQueryTextLi
 
     final private String SEARCH = "searchText";
 
-    private SwipeRefreshLayout swipeRefreshLayout;
-
     private TracksListAdapter tracksListAdapter;
+
+    @BindView(R.id.tracks_swipe_refresh) SwipeRefreshLayout swipeRefreshLayout;
+    @BindView(R.id.txt_no_tracks) TextView noTracksView;
+    @BindView(R.id.list_tracks) RecyclerView tracksRecyclerView;
+    @BindView(R.id.tracks_frame) View windowFrame;
+
+    private Unbinder unbinder;
 
     private String searchText = "";
 
     private SearchView searchView;
 
-    private View windowFrame;
 
-    private TextView noTracksView;
-
-    private RecyclerView tracksRecyclerView;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         setHasOptionsMenu(true);
         View view = inflater.inflate(R.layout.list_tracks, container, false);
+        unbinder = ButterKnife.bind(this,view);
+
         OpenEventApp.getEventBus().register(this);
-        tracksRecyclerView = (RecyclerView) view.findViewById(R.id.list_tracks);
-        noTracksView = (TextView) view.findViewById(R.id.txt_no_tracks);
         DbSingleton dbSingleton = DbSingleton.getInstance();
         List<Track> mTracks = dbSingleton.getTrackList();
-        windowFrame = view.findViewById(R.id.tracks_frame);
         tracksListAdapter = new TracksListAdapter(mTracks);
         tracksRecyclerView.setAdapter(tracksListAdapter);
         setVisibility(PreferenceManager.getDefaultSharedPreferences(getContext()).getBoolean(ConstantStrings.IS_DOWNLOAD_DONE, true));
@@ -81,17 +85,10 @@ public class TracksFragment extends Fragment implements SearchView.OnQueryTextLi
                 startActivity(intent);
             }
         });
-        swipeRefreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.tracks_swipe_refresh);
         swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
-                if (NetworkUtils.haveNetworkConnection(getActivity())) {
-                    DataDownloadManager.getInstance().downloadTracks();
-                    setVisibility(true);
-                } else {
-                    OpenEventApp.getEventBus().post(new TracksDownloadEvent(false));
-                    setVisibility(false);
-                }
+                refresh();
             }
         });
 
@@ -114,6 +111,12 @@ public class TracksFragment extends Fragment implements SearchView.OnQueryTextLi
     }
 
     @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        unbinder.unbind();
+    }
+
+    @Override
     public void onSaveInstanceState(Bundle bundle) {
         if (isAdded()) {
             if (searchView != null) {
@@ -132,6 +135,7 @@ public class TracksFragment extends Fragment implements SearchView.OnQueryTextLi
                 intent.putExtra(Intent.EXTRA_SUBJECT, R.string.share_links);
                 intent.setType("text/plain");
                 startActivity(Intent.createChooser(intent, getResources().getString(R.string.share_links)));
+                return true;
         }
         return super.onOptionsItemSelected(item);
     }
@@ -182,8 +186,23 @@ public class TracksFragment extends Fragment implements SearchView.OnQueryTextLi
 
         } else {
             if (getActivity() != null) {
-                Snackbar.make(windowFrame, getActivity().getString(R.string.refresh_failed), Snackbar.LENGTH_LONG).show();
+                Snackbar.make(windowFrame, getActivity().getString(R.string.refresh_failed), Snackbar.LENGTH_LONG).setAction(R.string.retry_download, new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        refresh();
+                    }
+                }).show();
             }
+        }
+    }
+
+    private void refresh() {
+        if (NetworkUtils.haveNetworkConnection(getActivity())) {
+            DataDownloadManager.getInstance().downloadTracks();
+            setVisibility(true);
+        } else {
+            OpenEventApp.getEventBus().post(new TracksDownloadEvent(false));
+            setVisibility(false);
         }
     }
 

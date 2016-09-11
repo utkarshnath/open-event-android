@@ -44,6 +44,7 @@ import org.fossasia.openevent.OpenEventApp;
 import org.fossasia.openevent.R;
 import org.fossasia.openevent.api.Urls;
 import org.fossasia.openevent.data.Event;
+import org.fossasia.openevent.data.EventDates;
 import org.fossasia.openevent.data.Microlocation;
 import org.fossasia.openevent.data.Session;
 import org.fossasia.openevent.data.SessionSpeakersMapping;
@@ -54,7 +55,7 @@ import org.fossasia.openevent.dbutils.DataDownloadManager;
 import org.fossasia.openevent.dbutils.DbSingleton;
 import org.fossasia.openevent.events.CounterEvent;
 import org.fossasia.openevent.events.DataDownloadEvent;
-import org.fossasia.openevent.events.EventDatesDownloadEvent;
+import org.fossasia.openevent.events.DownloadEvent;
 import org.fossasia.openevent.events.EventDownloadEvent;
 import org.fossasia.openevent.events.JsonReadEvent;
 import org.fossasia.openevent.events.MicrolocationDownloadEvent;
@@ -75,6 +76,7 @@ import org.fossasia.openevent.fragments.SponsorsFragment;
 import org.fossasia.openevent.fragments.TracksFragment;
 import org.fossasia.openevent.utils.CommonTaskLoop;
 import org.fossasia.openevent.utils.ConstantStrings;
+import org.fossasia.openevent.utils.ISO8601Date;
 import org.fossasia.openevent.utils.NetworkUtils;
 import org.fossasia.openevent.utils.SmoothActionBarDrawerToggle;
 import org.fossasia.openevent.widget.DialogFactory;
@@ -83,9 +85,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.List;
 
-import butterknife.Bind;
+import butterknife.BindView;
 import butterknife.ButterKnife;
 import timber.log.Timber;
 
@@ -104,27 +109,16 @@ public class MainActivity extends BaseActivity {
 
     private final String FRAGMENT_TAG_REST = "FTAGR";
 
+    @BindView(R.id.toolbar) Toolbar toolbar;
+    @BindView(R.id.nav_view) NavigationView navigationView;
+    @BindView(R.id.progress) ProgressBar downloadProgress;
+    @BindView(R.id.layout_main) CoordinatorLayout mainFrame;
+    @BindView(R.id.drawer) DrawerLayout drawerLayout;
+    @BindView(R.id.appbar) AppBarLayout appBarLayout;
+
     private String errorType;
-
     private String errorDesc;
-
     private SharedPreferences sharedPreferences;
-
-    @Bind(R.id.toolbar)
-    Toolbar toolbar;
-
-    @Bind(R.id.nav_view)
-    NavigationView navigationView;
-
-    @Bind(R.id.progress)
-    ProgressBar downloadProgress;
-
-    @Bind(R.id.layout_main)
-    CoordinatorLayout mainFrame;
-
-    @Bind(R.id.drawer)
-    DrawerLayout drawerLayout;
-
     private int counter;
 
     private int eventsDone;
@@ -132,11 +126,27 @@ public class MainActivity extends BaseActivity {
     private int currentMenuItemId;
 
     private SmoothActionBarDrawerToggle smoothActionBarToggle;
-    private AppBarLayout appBarLayout;
 
     public static Intent createLaunchFragmentIntent(Context context) {
         return new Intent(context, MainActivity.class)
                 .putExtra(NAV_ITEM, BOOKMARK);
+    }
+
+    public static void getDaysBetweenDates(Date startdate, Date enddate) {
+        ArrayList<String> dates = new ArrayList<String>();
+        Calendar calendar = new GregorianCalendar();
+        calendar.setTime(startdate);
+
+        while (calendar.getTime().before(enddate)) {
+            Date result = calendar.getTime();
+            Calendar calendar1 = Calendar.getInstance();
+            calendar1.setTime(result);
+            dates.add(new EventDates(ISO8601Date.dateFromCalendar(calendar1)).generateSql());
+            calendar.add(Calendar.DATE, 1);
+        }
+
+        DbSingleton.getInstance().insertQueries(dates);
+
     }
 
     @Override
@@ -162,12 +172,15 @@ public class MainActivity extends BaseActivity {
         counter = 0;
         eventsDone = 0;
         setContentView(R.layout.activity_main);
+
         ButterKnife.bind(this);
-        appBarLayout = (AppBarLayout) findViewById(R.id.appbar);
+        ButterKnife.setDebug(true);
+
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
         setUpToolbar();
         setUpNavDrawer();
 
+        ProgressBar downloadProgress = (ProgressBar) findViewById(R.id.progress);
         downloadProgress.setVisibility(View.VISIBLE);
         downloadProgress.setIndeterminate(true);
         this.findViewById(android.R.id.content).setBackgroundColor(Color.WHITE);
@@ -180,7 +193,7 @@ public class MainActivity extends BaseActivity {
                             @Override
                             public void onClick(DialogInterface dialogInterface, int i) {
                                 DbSingleton.getInstance().clearDatabase();
-                                Boolean preference = sharedPreferences.getBoolean(SettingsActivity.INTERNET_MODE, true);
+                                Boolean preference = sharedPreferences.getBoolean(getResources().getString(R.string.download_mode_key), true);
                                 if (preference) {
                                     if (NetworkUtils.haveWifiConnection(MainActivity.this)) {
                                         OpenEventApp.postEventOnUIThread(new DataDownloadEvent());
@@ -217,7 +230,7 @@ public class MainActivity extends BaseActivity {
                 );
                 downloadDialog.show();
             } else {
-                downloadFromAssets();
+                downloadProgress.setVisibility(View.GONE);
             }
         } else {
             final Snackbar snackbar = Snackbar.make(mainFrame, R.string.display_offline_schedule, Snackbar.LENGTH_LONG);
@@ -310,6 +323,9 @@ public class MainActivity extends BaseActivity {
 
     private void syncComplete() {
         downloadProgress.setVisibility(View.GONE);
+        Event currentEvent = DbSingleton.getInstance().getEventDetails();
+        getDaysBetweenDates(ISO8601Date.getDateObject(currentEvent.getStart()), ISO8601Date.getDateObject(currentEvent.getEnd()));
+
         Bus bus = OpenEventApp.getEventBus();
         bus.post(new RefreshUiEvent());
         DbSingleton dbSingleton = DbSingleton.getInstance();
@@ -326,9 +342,20 @@ public class MainActivity extends BaseActivity {
         Timber.d("Download done");
     }
 
-    private void downloadFailed() {
+    private void downloadFailed(final DownloadEvent event) {
         downloadProgress.setVisibility(View.GONE);
-        Snackbar.make(mainFrame, getString(R.string.download_failed), Snackbar.LENGTH_LONG).show();
+        Snackbar.make(mainFrame, getString(R.string.download_failed), Snackbar.LENGTH_LONG).setAction(R.string.retry_download, new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (event == null) {
+                    Timber.d("no internet.");
+                    OpenEventApp.postEventOnUIThread(new DataDownloadEvent());
+                } else {
+                    Timber.tag(COUNTER_TAG).d(event.getClass().getSimpleName());
+                    OpenEventApp.postEventOnUIThread(event);
+                }
+            }
+        }).show();
 
     }
 
@@ -374,6 +401,7 @@ public class MainActivity extends BaseActivity {
                     }
                 } else {
                     DialogFactory.createSimpleActionDialog(this, R.string.bookmarks, R.string.empty_list, null).show();
+                    if (currentMenuItemId == R.id.nav_schedule) addShadowToAppBar(false);
                 }
                 break;
             case R.id.nav_speakers:
@@ -439,20 +467,19 @@ public class MainActivity extends BaseActivity {
     public void onBackPressed() {
         FragmentManager fragmentManager = getSupportFragmentManager();
         android.support.v4.app.Fragment fragment = fragmentManager.findFragmentByTag(FRAGMENT_TAG_TRACKS);
-            if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                drawerLayout.closeDrawer(GravityCompat.START);
+        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START);
+        } else if (fragment != null && fragment.isVisible()) {
+            super.onBackPressed();
+        } else {
+            fragmentManager.beginTransaction()
+                    .replace(R.id.content_frame, new TracksFragment(), FRAGMENT_TAG_TRACKS).commit();
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setTitle(R.string.menu_tracks);
             }
-            else if (fragment != null && fragment.isVisible()) {
-                super.onBackPressed();
-            }
-            else {
-                fragmentManager.beginTransaction()
-                        .replace(R.id.content_frame, new TracksFragment(), FRAGMENT_TAG_TRACKS).commit();
-                if (getSupportActionBar() != null) {
-                    getSupportActionBar().setTitle(R.string.menu_tracks);
-                }
-            }
-         }
+            navigationView.setCheckedItem(R.id.nav_tracks);
+        }
+    }
 
     public void addShadowToAppBar(boolean addShadow) {
         if (addShadow) {
@@ -495,7 +522,7 @@ public class MainActivity extends BaseActivity {
                 syncComplete();
             }
         } else {
-            downloadFailed();
+            downloadFailed(event);
         }
     }
 
@@ -509,7 +536,7 @@ public class MainActivity extends BaseActivity {
             }
         } else {
 
-            downloadFailed();
+            downloadFailed(event);
         }
     }
 
@@ -523,7 +550,7 @@ public class MainActivity extends BaseActivity {
             }
         } else {
 
-            downloadFailed();
+            downloadFailed(event);
         }
     }
 
@@ -537,13 +564,13 @@ public class MainActivity extends BaseActivity {
             }
         } else {
 
-            downloadFailed();
+            downloadFailed(event);
         }
     }
 
     @Subscribe
     public void noInternet(NoInternetEvent event) {
-        downloadFailed();
+        downloadFailed(null);
     }
 
     @Subscribe
@@ -556,7 +583,7 @@ public class MainActivity extends BaseActivity {
             }
         } else {
 
-            downloadFailed();
+            downloadFailed(event);
         }
     }
 
@@ -570,22 +597,9 @@ public class MainActivity extends BaseActivity {
             }
         } else {
 
-            downloadFailed();
+            downloadFailed(event);
         }
 
-    }
-
-    @Subscribe
-    public void onEventDatesDownloadDone(EventDatesDownloadEvent event) {
-        if (event.isState()) {
-            eventsDone++;
-            Timber.tag(COUNTER_TAG).d(eventsDone + " " + counter);
-            if (counter == eventsDone) {
-                syncComplete();
-            }
-        } else {
-            downloadFailed();
-        }
     }
 
     @Subscribe
@@ -669,7 +683,6 @@ public class MainActivity extends BaseActivity {
                         }
                         DbSingleton.getInstance().insertQueries(queries);
                         OpenEventApp.postEventOnUIThread(new SessionDownloadEvent(true));
-
                         break;
                     }
                     case ConstantStrings.SPEAKERS: {
@@ -765,8 +778,7 @@ public class MainActivity extends BaseActivity {
             readJsonAsset(Urls.SESSIONS);
             readJsonAsset(Urls.SPONSORS);
             readJsonAsset(Urls.MICROLOCATIONS);
-        }
-        else {
+        } else {
             downloadProgress.setVisibility(View.GONE);
         }
     }
@@ -778,7 +790,7 @@ public class MainActivity extends BaseActivity {
             @Override
             public void run() {
                 try {
-                    InputStream inputStream = getAssets().open(name + ".json");
+                    InputStream inputStream = getAssets().open(name);
                     int size = inputStream.available();
                     byte[] buffer = new byte[size];
                     inputStream.read(buffer);
@@ -789,11 +801,11 @@ public class MainActivity extends BaseActivity {
                 } catch (IOException e) {
                     e.printStackTrace();
 
-
                 }
                 OpenEventApp.postEventOnUIThread(new JsonReadEvent(name, json));
 
             }
         });
     }
+
 }

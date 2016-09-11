@@ -1,7 +1,10 @@
 package org.fossasia.openevent.adapters;
 
 import android.app.Activity;
+import android.content.SharedPreferences;
 import android.net.Uri;
+import android.preference.PreferenceManager;
+import android.support.annotation.NonNull;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -10,6 +13,7 @@ import android.widget.Filter;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.simplecityapps.recyclerview_fastscroll.views.FastScrollRecyclerView;
 import com.squareup.picasso.Picasso;
 
 import org.fossasia.openevent.R;
@@ -31,7 +35,7 @@ import static org.fossasia.openevent.utils.SortOrder.sortOrderSpeaker;
  * User: MananWason
  * Date: 11-06-2015
  */
-public class SpeakersListAdapter extends BaseRVAdapter<Speaker, ViewHolder.Viewholder> {
+public class SpeakersListAdapter extends BaseRVAdapter<Speaker, ViewHolder.Viewholder> implements FastScrollRecyclerView.SectionedAdapter{
 
     private Activity activity;
 
@@ -86,6 +90,7 @@ public class SpeakersListAdapter extends BaseRVAdapter<Speaker, ViewHolder.Viewh
         viewholder.setImgView1((ImageView) view.findViewById(R.id.speaker_image));
         viewholder.setTxtView1((TextView) view.findViewById(R.id.speaker_name));
         viewholder.setTxtView2((TextView) view.findViewById(R.id.speaker_info));
+        viewholder.setTxtView3((TextView) view.findViewById(R.id.speaker_info_country));
 
         return viewholder;
     }
@@ -97,12 +102,13 @@ public class SpeakersListAdapter extends BaseRVAdapter<Speaker, ViewHolder.Viewh
         StringBuilder photoUri = new StringBuilder();
         photoUri.append(Urls.getBaseUrl()).append(current.getPhoto());
         Uri uri = Uri.parse(photoUri.toString());
-
         Picasso.with(holder.getImgView1().getContext()).load(uri)
                 .placeholder(R.drawable.ic_account_circle_grey_24dp).transform(new CircleTransform()).into(holder.getImgView1());
 
-        holder.getTxtView2().setText(String.format("%s %s", current.getPosition(), current.getOrganisation()));
+        holder.getTxtView2().setText(String.format("%s%s", current.getPosition(), current.getOrganisation()));
         holder.getTxtView1().setText(TextUtils.isEmpty(current.getName()) ? "" : current.getName());
+        holder.getTxtView3().setText(String.format("%s",current.getCountry()));
+
 
         holder.setItemClickListener(listener);
     }
@@ -118,5 +124,23 @@ public class SpeakersListAdapter extends BaseRVAdapter<Speaker, ViewHolder.Viewh
      */
     public interface SetOnClickListener extends ViewHolder.SetOnClickListener {
         void onItemClick(int position, View itemView);
+    }
+
+    @NonNull
+    @Override
+    public String getSectionName(int position) {
+        Speaker sp=getItem(position);
+        SharedPreferences prefsSort;
+        prefsSort = PreferenceManager.getDefaultSharedPreferences(activity);
+        switch (prefsSort.getInt("sortType", 0)) {
+            case 0:
+                return ""+sp.getName().charAt(0);
+            case 1:
+                return ""+sp.getOrganisation().charAt(0);
+            case 2:
+                return ""+sp.getCountry().charAt(0);
+            default:
+                return ""+sp.getName().charAt(0);
+        }
     }
 }

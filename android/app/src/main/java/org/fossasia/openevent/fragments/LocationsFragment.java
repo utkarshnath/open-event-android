@@ -31,6 +31,10 @@ import org.fossasia.openevent.events.MicrolocationDownloadEvent;
 import org.fossasia.openevent.events.RefreshUiEvent;
 import org.fossasia.openevent.utils.ConstantStrings;
 
+import butterknife.BindView;
+import butterknife.ButterKnife;
+import butterknife.Unbinder;
+
 /**
  * User: MananWason
  * Date: 8/18/2015
@@ -38,25 +42,25 @@ import org.fossasia.openevent.utils.ConstantStrings;
 public class LocationsFragment extends Fragment implements SearchView.OnQueryTextListener {
     final private String SEARCH = "searchText";
 
-    private SwipeRefreshLayout swipeRefreshLayout;
+    @BindView(R.id.locations_swipe_refresh) SwipeRefreshLayout swipeRefreshLayout;
+    @BindView(R.id.list_locations) RecyclerView locationsRecyclerView;
+    @BindView(R.id.txt_no_microlocations) TextView noMicrolocationsView;
 
-    private RecyclerView locationsRecyclerView;
-
+    private Unbinder unbinder;
     private LocationsListAdapter locationsListAdapter;
 
     private String searchText = "";
 
     private SearchView searchView;
 
-    private TextView noMicrolocationsView;
-
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         setHasOptionsMenu(true);
         View view = inflater.inflate(R.layout.list_locations, container, false);
+        unbinder = ButterKnife.bind(this,view);
+
         OpenEventApp.getEventBus().register(this);
-        locationsRecyclerView = (RecyclerView) view.findViewById(R.id.list_locations);
-        noMicrolocationsView  = (TextView) view.findViewById(R.id.txt_no_microlocations);
+
         final DbSingleton dbSingleton = DbSingleton.getInstance();
         locationsListAdapter = new LocationsListAdapter(dbSingleton.getMicrolocationsList());
         locationsRecyclerView.setAdapter(locationsListAdapter);
@@ -72,11 +76,10 @@ public class LocationsFragment extends Fragment implements SearchView.OnQueryTex
             }
         });
 
-        swipeRefreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.locations_swipe_refresh);
         swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
-                DataDownloadManager.getInstance().downloadMicrolocations();
+                refresh();
             }
         });
 
@@ -158,6 +161,12 @@ public class LocationsFragment extends Fragment implements SearchView.OnQueryTex
         }
     }
 
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        unbinder.unbind();
+    }
+
     @Subscribe
     public void LocationsDownloadDone(MicrolocationDownloadEvent event) {
 
@@ -167,8 +176,17 @@ public class LocationsFragment extends Fragment implements SearchView.OnQueryTex
 
         } else {
             if (getActivity() != null) {
-                Snackbar.make(getView(), getActivity().getString(R.string.refresh_failed), Snackbar.LENGTH_LONG).show();
+                Snackbar.make(getView(), getActivity().getString(R.string.refresh_failed), Snackbar.LENGTH_LONG).setAction(R.string.retry_download, new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        refresh();
+                    }
+                }).show();
             }
         }
+    }
+
+    private void refresh() {
+        DataDownloadManager.getInstance().downloadMicrolocations();
     }
 }

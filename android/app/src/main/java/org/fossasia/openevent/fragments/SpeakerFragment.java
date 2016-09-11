@@ -24,6 +24,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import com.simplecityapps.recyclerview_fastscroll.views.FastScrollRecyclerView;
 import com.squareup.otto.Subscribe;
 
 import org.fossasia.openevent.OpenEventApp;
@@ -39,6 +40,9 @@ import org.fossasia.openevent.utils.NetworkUtils;
 
 import java.util.List;
 
+import butterknife.BindView;
+import butterknife.ButterKnife;
+import butterknife.Unbinder;
 import timber.log.Timber;
 
 import static org.fossasia.openevent.utils.SortOrder.sortOrderSpeaker;
@@ -51,7 +55,11 @@ public class SpeakerFragment extends Fragment implements SearchView.OnQueryTextL
 
     private SharedPreferences prefsSort;
 
-    private SwipeRefreshLayout swipeRefreshLayout;
+    @BindView(R.id.speaker_swipe_refresh) SwipeRefreshLayout swipeRefreshLayout;
+    @BindView(R.id.txt_no_speakers)  TextView noSpeakersView;
+    @BindView(R.id.rv_speakers) FastScrollRecyclerView speakersRecyclerView;
+
+    private Unbinder unbinder;
 
     private SpeakersListAdapter speakersListAdapter;
 
@@ -66,9 +74,13 @@ public class SpeakerFragment extends Fragment implements SearchView.OnQueryTextL
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         setHasOptionsMenu(true);
         View view = inflater.inflate(R.layout.list_speakers, container, false);
+        unbinder = ButterKnife.bind(this,view);
+
         OpenEventApp.getEventBus().register(this);
-        RecyclerView speakersRecyclerView = (RecyclerView) view.findViewById(R.id.rv_speakers);
-        TextView noSpeakersView = (TextView) view.findViewById(R.id.txt_no_speakers);
+
+        speakersRecyclerView.setThumbColor(getResources().getColor(R.color.color_primary));
+        speakersRecyclerView.setPopupBgColor(getResources().getColor(R.color.color_primary));
+
         final DbSingleton dbSingleton = DbSingleton.getInstance();
         List<Speaker> mSpeakers = dbSingleton.getSpeakerList(sortOrderSpeaker(getActivity()));
         prefsSort = PreferenceManager.getDefaultSharedPreferences(getActivity());
@@ -87,15 +99,10 @@ public class SpeakerFragment extends Fragment implements SearchView.OnQueryTextL
             }
         });
 
-        swipeRefreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.speaker_swipe_refresh);
         swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
-                if (NetworkUtils.haveNetworkConnection(getActivity())) {
-                    DataDownloadManager.getInstance().downloadSpeakers();
-                } else {
-                    OpenEventApp.getEventBus().post(new SpeakerDownloadEvent(false));
-                }
+                refresh();
             }
         });
 
@@ -112,6 +119,12 @@ public class SpeakerFragment extends Fragment implements SearchView.OnQueryTextL
             speakersRecyclerView.setVisibility(View.GONE);
         }
         return view;
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        unbinder.unbind();
     }
 
     @Override
@@ -175,9 +188,22 @@ public class SpeakerFragment extends Fragment implements SearchView.OnQueryTextL
             Timber.i("Speaker download completed");
         } else {
             if (getActivity() != null) {
-                Snackbar.make(getView(), getActivity().getString(R.string.refresh_failed), Snackbar.LENGTH_LONG).show();
+                Snackbar.make(getView(), getActivity().getString(R.string.refresh_failed), Snackbar.LENGTH_LONG).setAction(R.string.retry_download, new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        refresh();
+                    }
+                }).show();
             }
             Timber.i("Speaker download failed.");
+        }
+    }
+
+    private void refresh() {
+        if (NetworkUtils.haveNetworkConnection(getActivity())) {
+            DataDownloadManager.getInstance().downloadSpeakers();
+        } else {
+            OpenEventApp.getEventBus().post(new SpeakerDownloadEvent(false));
         }
     }
 

@@ -25,11 +25,19 @@
     <string name="action_settings">Settings</string>
 
     <!--Settings-->
-    <string name="settings_mode_api"> API Mode</string>
-    <string name="default_mode_api">Developer</string>
+    <string name="settings_mode_download">Download updates only on wifi</string>
+    <string name="summary_mode_download">If switched on app will not use Mobile Data to update schedule</string>
+    <string name="download_mode_key">internet_mode</string>
+
 
     <string name="settings_mode_notification"> Notification Mode</string>
     <string name="default_mode_notification">10</string>
+    <string name="notification_key">notification</string>
+
+    <string name="settings_mode_timezone"> Show Local Times</string>
+    <string name="summary_mode_timezone">Use your local time instead of the conference\'s local time.</string>
+    <string name="timezone_mode_key">timezone_mode</string>
+
 
 
     <!--Social-->
@@ -82,14 +90,19 @@
     <string name="dialog_action_ok">OK</string>
     <string name="dialog_error_title">Error</string>
     <string name="website">website</string>
-    <string name="notification_key">notification</string>
     <string name="menu_speaker_sort">Sort</string>
     <string name="dialog_sort_title">Sort By</string>
 
-    <!--Sort Dialog text-->
+    <!--Speaker Sort Dialog text-->
     <string name="dialog_sort_organisation">Organisation</string>
     <string name="dialog_sort_country">Country</string>
     <string name="dialog_sort_name">Speaker Name</string>
+
+    <!--Session Sort Dialog text-->
+    <string name="dialog_sort_tracks">Tracks</string>
+    <string name="dialog_sort_sessions">Start Time</string>
+
+
     <string name="launcher_icon">Launcher Icon</string>
     <string name="sponsor_image">Sponsor Image</string>
     <string name="header_image">Header Image</string>
